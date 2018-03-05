@@ -3,7 +3,45 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#include <string.h>
+#include "hiredis/hiredis.h"
+
 ngx_module_t ngx_http_auth_token_module;
+
+static ngx_int_t
+redirect(ngx_http_request_t *r, ngx_str_t *location)
+{
+  ngx_table_elt_t *h;
+  h = ngx_list_push(&r->headers_out.headers);
+  h->hash = 1;
+  ngx_str_set(&h->key, "Location");
+  h->value = *location;
+
+  return NGX_HTTP_MOVED_TEMPORARILY;
+}
+
+static ngx_int_t
+lookup_user(ngx_str_t *auth_token, ngx_str_t *user_id)
+{
+  redisContext *context = redisConnect("localhost", 6379);
+  redisReply *reply = redisCommand(context, "GET %s", auth_token->data);
+  if(reply->type == REDIS_REPLY_NIL) {
+    return NGX_DECLINED;
+  } else {
+    ngx_str_set(user_id, reply->str);
+    return NGX_OK;
+  }
+}
+
+static ngx_int_t
+append_user_id(ngx_http_request_t *r, ngx_str_t *user_id)
+{
+  ngx_table_elt_t *h;
+  h = ngx_list_push(&r->headers_out.headers);
+  h->hash = 1;
+  ngx_str_set(&h->key, "X-User-Id");
+  h->value = *user_id;
+}
 
 static ngx_int_t 
 ngx_http_auth_token_handler(ngx_http_request_t *r)
@@ -15,38 +53,22 @@ ngx_http_auth_token_handler(ngx_http_request_t *r)
   r->main->internal = 1;
 
   ngx_str_t cookie = (ngx_str_t)ngx_string("auth_token");
-  ngx_int_t location;
-  ngx_str_t cookie_value;
-  location = ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &cookie, &cookie_value);
+  ngx_str_t location = (ngx_str_t)ngx_string("http://google.com");
+  ngx_int_t lookup;
+  ngx_str_t auth_token;
+  lookup = ngx_http_parse_multi_header_lines(&r->headers_in.cookies, &cookie, &auth_token);
 
-  if(location == NGX_DECLINED) {
-    ngx_table_elt_t *h;
-    h = ngx_list_push(&r->headers_out.headers);
-    h->hash = 1;
-    ngx_str_set(&h->key, "Location");
-    ngx_str_set(&h->value, "http://google.com");
-    return NGX_HTTP_MOVED_TEMPORARILY;
-  } else {
-    ngx_table_elt_t *h;
-    h = ngx_list_push(&r->headers_out.headers);
-    h->hash = 1;
-    ngx_str_set(&h->key, "X-Auth-Token");
-    h->value = cookie_value;
+  if(lookup == NGX_DECLINED) {
+    return redirect(r, &location);
   }
 
-  /*
-  ngx_table_elt_t *h;
-  h = ngx_list_push(&r->headers_out.headers);
-  h->hash = 1;
-  ngx_str_set(&h->key, "X-NGINX-Tutorial");
-  ngx_str_set(&h->value, "Hello World!");
+  ngx_str_t user_id;
+  ngx_int_t lookup_result = lookup_user(&auth_token, &user_id);
+  if(lookup_result == NGX_DECLINED) {
+    return redirect(r, &location);
+  }
 
-  h = ngx_list_push(&r->headers_out.headers);
-  h->hash = 1;
-  ngx_str_set(&h->key, "X-NGINX-Student");
-  ngx_str_set(&h->value, "Galen Palmer");
-  */
-
+  append_user_id(r, &user_id);
   return NGX_DECLINED;
 }
 
@@ -78,6 +100,7 @@ ngx_http_auth_token_module_ctx = {
   NULL,                     /* create location configuration */
   NULL                      /* merge location configuration */
 };
+
 
 ngx_module_t
 ngx_http_auth_token_module = {
