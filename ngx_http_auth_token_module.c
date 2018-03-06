@@ -6,6 +6,9 @@
 #include <string.h>
 #include "hiredis/hiredis.h"
 
+#include "dtm.pb-c.h"
+#include "settings.pb-c.h"
+
 typedef struct {
   ngx_str_t redis_host;
   ngx_int_t redis_port;

@@ -23,6 +23,39 @@ setup_local_directories() {
   fi
 }
 
+install_protobuf() {
+  if [ ! -d "vendor/protobuf" ]; then
+    pushd vendor > /dev/null 2>&1
+    git clone https://github.com/google/protobuf.git
+    pushd protobuf > /dev/null 2>&1
+    ./autogen.sh
+    ./configure --prefix=/usr
+    make
+    sudo make install
+    sudo ldconfig
+    popd > /dev/null 2>&1
+    popd > /dev/null 2>&1
+  else
+    printf "Protobuf library already installed\n"
+  fi
+}
+
+install_protobuf_c() {
+  if [ ! -d "vendor/protobuf-c" ]; then
+    pushd vendor > /dev/null 2>&1
+    git clone https://github.com/protobuf-c/protobuf-c.git
+    pushd protobuf-c > /dev/null 2>&1
+    ./autogen.sh
+    ./configure --prefix=/usr
+    make
+    sudo make install
+    popd > /dev/null 2>&1
+    popd > /dev/null 2>&1
+  else
+    printf "Protobuf-c library already installed\n"
+  fi
+}
+
 install_nginx() {
   if [ ! -d "vendor/nginx-$NGINX_VERSION" ]; then
     pushd vendor > /dev/null 2>&1
@@ -53,5 +86,7 @@ if [[ "$#" -eq 1 ]]; then
   fi
 else
   setup_local_directories
+  install_protobuf
+  install_protobuf_c
   install_nginx
 fi
