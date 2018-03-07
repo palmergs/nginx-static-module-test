@@ -6,6 +6,7 @@
 #include <string.h>
 #include "hiredis/hiredis.h"
 
+#include <protobuf-c/protobuf-c.h>
 #include "dtm.pb-c.h"
 #include "settings.pb-c.h"
 
@@ -117,6 +118,9 @@ ngx_http_auth_token_handler(ngx_http_request_t *r)
   if(lookup_result == NGX_DECLINED) {
     return redirect(r, &conf->redirect_location);
   }
+
+
+  Contrast__Api__Dtm__Message message = CONTRAST__API__DTM__MESSAGE__INIT;
 
   append_user_id(r, &user_id);
   return NGX_DECLINED;

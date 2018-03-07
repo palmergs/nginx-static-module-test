@@ -8,7 +8,9 @@ CFLAGS="-g -O0" ./configure \
     --conf-path=conf/nginx.conf \
     --error-log-path=logs/error.log \
     --http-log-path=logs/access.log \
-    --add-module=../../
+    --add-module=../../ \
+    --with-cc-opt="" \
+    --with-ld-opt="-lprotobuf-c"
 make
 make install
 popd
