@@ -10,6 +10,8 @@
 #include "dtm.pb-c.h"
 #include "settings.pb-c.h"
 
+static int32_t message_count = 0;
+
 typedef struct {
   ngx_str_t redis_host;
   ngx_int_t redis_port;
@@ -121,6 +123,23 @@ ngx_http_auth_token_handler(ngx_http_request_t *r)
 
 
   Contrast__Api__Dtm__Message message = CONTRAST__API__DTM__MESSAGE__INIT;
+  message.client_id = "NGINX";
+  message.client_number = (int32_t)ngx_process_slot;
+  message.client_total = (int32_t)1;
+  message.pid = 0;
+  message.ppid = 0;
+  message.message_count = ++message_count;
+  message.app_name = "Nginx Test";
+  message.app_language = "Universal";
+  message.timestamp_ms = (int64_t)time(NULL);  
+ 
+  Contrast__Api__Dtm__HttpRequest request = CONTRAST__API__DTM__HTTP_REQUEST__INIT; 
+  request.protocol = "http";
+  request.method = "GET";
+  request.version = "HTTP/1.1";
+  request.uri = "/context/path/to/123/edit?a=1&b=2&c[]=3&d[e]=4";
+ 
+  message.prefilter = &request; 
 
   append_user_id(r, &user_id);
   return NGX_DECLINED;
