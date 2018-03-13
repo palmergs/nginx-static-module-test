@@ -19,70 +19,65 @@
 
 #ifndef CONTRAST_CONSTANTS
 #define CONTRAST_CONSTANTS
-#define CLIENT_SOCK_FILE "client.sock"
-#define SERVER_SOCK_FILE "server.sock"
+#define SERVER_SOCK_FILE "/tmp/contrast-service.sock"
 #endif
 
-static int
-write_to_socket()
+static int write_to_socket(unsigned char * data, unsigned char * response)
 {
-  int fd;
-  struct sockaddr_un addr;
-  int ret;
-  char buff[8192];
-  struct sockaddr_un from;
-  int ok = 1;
-  int len;
+	int sock;
+	struct sockaddr_un server;
+	
+	sock = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (sock < 0) {
+		perror("opening stream socket");
+		return 1;
+	}
 
-  if ((fd = socket(PF_UNIX, SOCK_DGRAM, 0)) < 0) {
-    perror("socket");
-    ok = 0;
-  }
+	server.sun_family = AF_UNIX;
+	strcpy(server.sun_path, SERVER_SOCK_FILE);
 
-  if (ok) {
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strcpy(addr.sun_path, CLIENT_SOCK_FILE);
-    unlink(CLIENT_SOCK_FILE);
-    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-      perror("bind");
-      ok = 0;
-    }
-  }
+	if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr_un)) < 0) {
+		close(sock);
+		perror("connecting stream socket");
+		return 1;
+	}
 
-  if (ok) {
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strcpy(addr.sun_path, SERVER_SOCK_FILE);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-      perror("connect");
-      ok = 0;
-    }
-  }
+	size_t message_size = sizeof(data);
+	unsigned char header_message[4] = { 
+		(unsigned char)(message_size >> 24), 
+		(unsigned char)(message_size >> 16), 
+		(unsigned char)(message_size >> 8),
+		(unsigned char)(message_size) };
+	if (write(sock, header_message, 4) < 0) {
+		close(sock);
+		perror("could not write message size");
+		return 1;
+	}
 
-  if (ok) {
-    strcpy(buff, "iccExchangeAPDU");
-    if (send(fd, buff, strlen(buff) + 1, 0) == -1) {
-      perror("send");
-      ok = 0;
-    }
-    printf("sent iccExchangeAPDU\n");
-  }
+	if (write(sock, data, message_size) < 0) {
+		close(sock);
+		perror("writing on string socket");
+		return 1;
+	}
 
-  if (ok) {
-    if ((len = recv(fd, buff, 8192, 0)) < 0) {
-      perror("recv");
-      ok = 0;
-    }
-    printf("receive %d %s\n", len, buff);
-  }
+	size_t header_size = 0;
+	unsigned char header_response[4];
+	if ((header_size = read(sock, header_response, 4)) < 4) {
+		close(sock);
+		perror("reading response size");
+		return 1;
+	}
 
-  if (fd >= 0) {
-    close(fd);
-  }
+	size_t response_size = (header_response[3] << 24) | (header_response[2] << 16) | (header_response[1] << 8) | (header_response[0]);
+	size_t actual_size = 0;
+	response = malloc(response_size);
+	if ((actual_size = read(sock, response, response_size)) < response_size) {
+		close(sock);
+		perror("reading response");
+		return 1;
+	}
 
-  unlink(CLIENT_SOCK_FILE);
-  return 0;
+	return 0;
 }
 
 static int32_t message_count = 0;
